@@ -1,0 +1,2222 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- NEW: 專為 iPhone 主畫面優化的 Meta 標籤 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="排班 App">
+    <link rel="apple-touch-icon" href="https://placehold.co/180x180/0000FF/FFFFFF?text=%E6%8E%92%E7%8F%AD"> <!-- 替換成您的 App Icon URL -->
+    
+    <title>我的工作排程 (My Work Schedule)</title>
+    <!-- 載入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- NEW: 載入 html2canvas 函式庫，用於匯出 PNG 圖片 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body class="bg-gray-100 font-sans antialiased text-gray-800">
+    <div id="app-frame" class="relative w-full h-full max-w-md mx-auto bg-white shadow-xl rounded-3xl overflow-hidden flex flex-col" style="height: 100vh; max-height: 850px;">
+        
+        <!-- Header -->
+        <header class="p-4 bg-white border-b border-gray-200 sticky top-0 z-10">
+            <h1 id="header-title" class="text-xl font-bold text-center text-gray-800">月曆排班 (Schedule)</h1>
+            <!-- 顯示 userId (已註銷 Firebase，故此處註銷) 
+            <p class="text-xs text-center text-gray-400 mt-1">User ID: <span id="user-id-display">N/A</span></p>
+            -->
+        </header>
+
+        <!-- Main Content Area -->
+        <main id="main-content" class="flex-grow overflow-y-auto bg-gray-50 pb-20">
+
+            <!-- Tab 1: 月曆排班 (Schedule View) -->
+            <div id="tab-schedule" class="tab-content active-tab p-4 space-y-4">
+                
+                <!-- 月曆導航 -->
+                <div class="flex justify-between items-center bg-white p-3 rounded-xl shadow-md">
+                    <button onclick="changeMonth(-1)" class="p-2 text-gray-600 hover:text-blue-500 transition duration-150">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <h2 id="current-month" class="text-2xl font-extrabold text-blue-600"></h2>
+                    <button onclick="changeMonth(1)" class="p-2 text-gray-600 hover:text-blue-500 transition duration-150">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                    </button>
+                </div>
+
+                <!-- 快速操作按鈕 -->
+                <div class="flex justify-around space-x-2">
+                    <button onclick="autoScheduleMonth()" class="flex-1 px-4 py-2 bg-green-500 text-white font-semibold rounded-xl shadow-lg hover:bg-green-600 transition duration-150 text-sm">
+                        ⚡ 重新排班 (自動填滿本月)
+                    </button>
+                    <button onclick="clearAllAssignments()" class="flex-1 px-4 py-2 bg-red-500/80 text-white font-semibold rounded-xl shadow-lg hover:bg-red-600/90 transition duration-150 text-sm">
+                        🧹 清除本月所有排班
+                    </button>
+                </div>
+
+
+                <!-- 星期標題 -->
+                <div class="grid grid-cols-7 gap-1 text-center font-semibold text-xs text-gray-500">
+                    <span class="text-red-500">日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span class="text-red-500">六</span>
+                </div>
+
+                <!-- 月曆網格 -->
+                <div id="calendar-grid" class="grid grid-cols-7 gap-1">
+                    <!-- Calendar days will be rendered here -->
+                </div>
+
+            </div>
+
+            <!-- Tab 2: 矩陣排班 (Matrix View - Working) -->
+            <div id="tab-matrix" class="tab-content p-4 space-y-4 hidden">
+                
+                <!-- 矩陣導航與操作 -->
+                <div class="flex flex-col space-y-3 bg-white p-3 rounded-xl shadow-md">
+                    <div class="flex justify-between items-center">
+                        <button onclick="changeMonth(-1)" class="p-2 text-gray-600 hover:text-blue-500 transition duration-150">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                        </button>
+                        <h2 id="matrix-current-month" class="text-2xl font-extrabold text-blue-600"></h2>
+                        <button onclick="changeMonth(1)" class="p-2 text-gray-600 hover:text-blue-500 transition duration-150">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                        </button>
+                    </div>
+
+                    <div class="flex justify-around space-x-2">
+                        <button onclick="autoScheduleMonth()" class="flex-1 px-3 py-2 bg-green-500 text-white font-semibold rounded-lg shadow-lg hover:bg-green-600 transition duration-150 text-sm">
+                            重新排班
+                        </button>
+                        <button onclick="clearAllAssignments()" class="flex-1 px-3 py-2 bg-red-500/80 text-white font-semibold rounded-lg shadow-lg hover:bg-red-600/90 transition duration-150 text-sm">
+                            清除排班
+                        </button>
+                    </div>
+
+                    <div class="flex justify-around space-x-2 pt-2 border-t border-gray-100">
+                        <button onclick="exportMatrixToPDF('working')" class="flex-1 px-3 py-2 bg-yellow-500 text-white font-semibold rounded-lg shadow-lg hover:bg-yellow-600 transition duration-150 text-sm">
+                            匯出 PDF
+                        </button>
+                        <button onclick="exportMatrixToPNG('working')" class="flex-1 px-3 py-2 bg-teal-500 text-white font-semibold rounded-lg shadow-lg hover:bg-teal-600 transition duration-150 text-sm">
+                            匯出 PNG
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 矩陣表格 (可水平滾動) -->
+                <div id="matrix-scroll-container-working" class="overflow-x-auto shadow-lg rounded-xl bg-white border border-gray-200">
+                    <div id="matrix-table-container-working">
+                        <!-- Matrix table will be rendered here -->
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Tab 3: 最終調整矩陣 (Matrix View - Final Adjustment) -->
+            <div id="tab-adjust" class="tab-content p-4 space-y-4 hidden">
+                
+                <!-- 調整矩陣導航與操作 -->
+                <div class="flex flex-col space-y-3 bg-white p-3 rounded-xl shadow-md">
+                    <div class="flex justify-between items-center">
+                        <button onclick="changeMonth(-1)" class="p-2 text-gray-600 hover:text-blue-500 transition duration-150">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                        </button>
+                        <h2 id="adjust-current-month" class="text-2xl font-extrabold text-blue-600"></h2>
+                        <button onclick="changeMonth(1)" class="p-2 text-gray-600 hover:text-blue-500 transition duration-150">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                        </button>
+                    </div>
+
+                    <div class="flex justify-around space-x-2 pt-2 border-t border-gray-100">
+                        <!-- NEW: 替換為「複製工作排班」按鈕 -->
+                        <button onclick="copyWorkingScheduleToFinal()" class="flex-1 px-3 py-2 bg-indigo-500 text-white font-semibold rounded-lg shadow-lg hover:bg-indigo-600 transition duration-150 text-sm">
+                            複製工作排班
+                        </button>
+                        <button onclick="exportMatrixToPDF('final')" class="flex-1 px-3 py-2 bg-yellow-500 text-white font-semibold rounded-lg shadow-lg hover:bg-yellow-600 transition duration-150 text-sm">
+                            匯出 PDF (調整後)
+                        </button>
+                    </div>
+                     <div class="flex justify-around space-x-2 pt-2 border-t border-gray-100">
+                        <button onclick="clearAllAssignments()" class="flex-1 px-3 py-2 bg-red-500/80 text-white font-semibold rounded-lg shadow-lg hover:bg-red-600/90 transition duration-150 text-sm">
+                            清除調整排班
+                        </button>
+                        <button onclick="exportMatrixToPNG('final')" class="flex-1 px-3 py-2 bg-teal-500 text-white font-semibold rounded-lg shadow-lg hover:bg-teal-600 transition duration-150 text-sm">
+                            匯出 PNG (調整後)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 矩陣表格 (可水平滾動) -->
+                <div id="matrix-scroll-container-final" class="overflow-x-auto shadow-lg rounded-xl bg-white border border-gray-200">
+                    <div id="matrix-table-container-final">
+                        <!-- Matrix table (final) will be rendered here -->
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Tab 4: 工作設定 (Job Config) -->
+            <div id="tab-config" class="tab-content p-4 space-y-6 hidden">
+                
+                <!-- 工作事項清單 -->
+                <div class="space-y-4">
+                    <h2 class="text-xl font-bold text-gray-800">工作事項設定</h2>
+                    <div id="job-list" class="space-y-3">
+                        <!-- Job configurations will be rendered here -->
+                    </div>
+                    <button onclick="showJobConfigModal()" class="w-full px-4 py-3 bg-blue-500 text-white font-semibold rounded-xl shadow-lg hover:bg-blue-600 transition duration-150 text-sm">
+                        + 新增工作事項
+                    </button>
+                </div>
+                
+                <!-- 人員顏色標籤設定 -->
+                <div class="space-y-4 pt-4 border-t border-gray-200">
+                    <h2 class="text-xl font-bold text-gray-800">人員顏色標籤設定</h2>
+                    <p class="text-sm text-gray-500">點擊按鈕為每位人員設定專屬顏色，方便排班表辨識。</p>
+                    <div id="staff-color-list" class="space-y-3">
+                        <!-- Staff colors will be rendered here -->
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Tab 5: 統計總覽 (Overview) -->
+            <div id="tab-overview" class="tab-content p-4 space-y-4 hidden">
+                <h2 class="text-xl font-bold text-gray-800">人員排班負荷總覽 (本月)</h2>
+                <div id="staff-load-list" class="space-y-3">
+                    <!-- Staff load list will be rendered here -->
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Footer / Tab Bar -->
+        <nav class="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-2xl z-20">
+            <div class="flex justify-around h-16">
+                
+                <button onclick="switchTab('schedule', this)" class="tab-btn flex flex-col items-center justify-center flex-grow text-blue-500 transition duration-150">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    <span class="text-xs mt-0.5">月曆</span>
+                </button>
+                
+                <button onclick="switchTab('matrix', this)" class="tab-btn flex flex-col items-center justify-center flex-grow text-gray-400 hover:text-blue-500 transition duration-150">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                    <span class="text-xs mt-0.5">矩陣</span>
+                </button>
+
+                <!-- NEW: 最終調整矩陣 Tab -->
+                <button onclick="switchTab('adjust', this)" class="tab-btn flex flex-col items-center justify-center flex-grow text-gray-400 hover:text-blue-500 transition duration-150">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2h.01m-2.288 3.737L7 12l2.712 2.263M12 6v6m0 0h6m-6 0l2.288-2.263M12 12V6M6 18h12a2 2 0 002-2V8a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    <span class="text-xs mt-0.5">調整</span>
+                </button>
+                
+                <button onclick="switchTab('config', this)" class="tab-btn flex flex-col items-center justify-center flex-grow text-gray-400 hover:text-blue-500 transition duration-150">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.82 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.82 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.82-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.82-3.31 2.37-2.37a1.724 1.724 0 002.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    <span class="text-xs mt-0.5">設定</span>
+                </button>
+                
+                <button onclick="switchTab('overview', this)" class="tab-btn flex flex-col items-center justify-center flex-grow text-gray-400 hover:text-blue-500 transition duration-150">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                    <span class="text-xs mt-0.5">總覽</span>
+                </button>
+
+            </div>
+        </nav>
+
+    </div>
+
+    <!-- Modal 1: 排班設定 (Schedule Modal) -->
+    <div id="schedule-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 z-30 hidden flex items-center justify-center p-4" onclick="if(event.target.id === 'schedule-modal') closeScheduleModal()">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4 transform transition-all duration-300 scale-100">
+            <h3 id="modal-date" class="text-xl font-bold text-gray-800">為 [日期] 排班</h3>
+            
+            <div>
+                <label for="schedule-job-select" class="block text-sm font-medium text-gray-700 mb-1">選擇工作事項:</label>
+                <select id="schedule-job-select" class="w-full p-3 border border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-150"></select>
+            </div>
+
+            <div>
+                <label id="person-select-label" for="schedule-person-select" class="block text-sm font-medium text-gray-700 mb-1">選擇負責人:</label>
+                <select id="schedule-person-select" class="w-full p-3 border border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500 transition duration-150"></select>
+                <p id="schedule-suggestion" class="text-xs text-blue-500 mt-2">💡 系統建議: </p>
+            </div>
+
+            <div class="flex justify-end space-x-3">
+                <button onclick="closeScheduleModal()" class="px-4 py-2 text-gray-600 font-medium rounded-xl hover:bg-gray-100 transition duration-150">取消</button>
+                <button id="save-schedule-btn" class="px-4 py-2 bg-blue-500 text-white font-medium rounded-xl shadow-md hover:bg-blue-600 transition duration-150">儲存排班</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: 工作事項配置 (Job Config Modal) -->
+    <div id="job-config-modal" data-editing-id="" class="fixed inset-0 bg-gray-900 bg-opacity-75 z-30 hidden flex items-center justify-center p-4" onclick="if(event.target.id === 'job-config-modal') closeJobConfigModal()">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4 transform transition-all duration-300 scale-100">
+            <h3 id="job-config-title" class="text-xl font-bold text-gray-800">新增工作事項</h3>
+            
+            <form id="job-config-form" class="space-y-3">
+                <div>
+                    <label for="name" class="block text-sm font-medium text-gray-700 mb-1">事項名稱:</label>
+                    <input type="text" id="name" name="name" required class="w-full p-3 border border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                
+                <!-- 移除的「簡短代碼」輸入欄位 -->
+                
+                <div>
+                    <label for="rotation" class="block text-sm font-medium text-gray-700 mb-1">輪替週期:</label>
+                    <select id="rotation" name="rotation" required class="w-full p-3 border border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                        <option value="daily">每日輪替</option>
+                        <option value="weekly">每週輪替 (週一換人)</option>
+                        <option value="biweekly">隔週輪替 (隔週週一換人)</option>
+                        <option value="monthly">整個月負責 (每月一號換人)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="pool" class="block text-sm font-medium text-gray-700 mb-1">人選池 (以逗號分隔，例如: 張三, 李四):</label>
+                    <input type="text" id="pool" name="pool" required class="w-full p-3 border border-gray-300 rounded-xl shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+            </form>
+
+            <div class="flex justify-between pt-4 border-t border-gray-100">
+                <button id="delete-job-btn" onclick="deleteJobConfirmation()" class="px-4 py-2 text-white font-medium rounded-xl bg-red-500 shadow-md hover:bg-red-600 transition duration-150 hidden">刪除</button>
+                <div class="flex space-x-3 ml-auto">
+                    <button onclick="closeJobConfigModal()" class="px-4 py-2 text-gray-600 font-medium rounded-xl hover:bg-gray-100 transition duration-150">取消</button>
+                    <button id="save-job-config-btn" onclick="handleJobSave()" class="px-4 py-2 bg-blue-500 text-white font-medium rounded-xl shadow-md hover:bg-blue-600 transition duration-150">儲存事項</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal 3: 人員顏色配置 (Staff Color Modal) -->
+    <div id="staff-color-modal" data-person-name="" class="fixed inset-0 bg-gray-900 bg-opacity-75 z-30 hidden flex items-center justify-center p-4" onclick="if(event.target.id === 'staff-color-modal') closeStaffColorModal()">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4 transform transition-all duration-300 scale-100">
+            <h3 id="staff-color-title" class="text-xl font-bold text-gray-800">設定 [人員] 的顏色</h3>
+            
+            <div id="color-palette" class="grid grid-cols-4 gap-3">
+                <!-- Color options will be rendered here -->
+            </div>
+            
+            <input type="hidden" id="staff-color-input" value="blue-500">
+
+            <div class="flex justify-end space-x-3 pt-4 border-t border-gray-100">
+                <button onclick="closeStaffColorModal()" class="px-4 py-2 text-gray-600 font-medium rounded-xl hover:bg-gray-100 transition duration-150">取消</button>
+                <button onclick="saveStaffColor()" class="px-4 py-2 bg-blue-500 text-white font-medium rounded-xl shadow-md hover:bg-blue-600 transition duration-150">確認儲存</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 打印樣式 (僅在列印時生效) -->
+    <style>
+        /* 橫向 A4 佈局 */
+        @media print {
+            @page {
+                size: A4 landscape;
+                margin: 0.5cm; /* 縮小邊界 */
+            }
+
+            /* 確保所有內容都可見，並移除滾動條 */
+            body, #app-frame, #main-content, #tab-matrix, #matrix-scroll-container, #tab-adjust, #matrix-scroll-container-final {
+                overflow: visible !important;
+                height: auto !important;
+                max-height: none !important;
+                width: auto !important;
+                max-width: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+            }
+
+            /* 隱藏非內容元素 */
+            header, nav, .tab-content:not(#tab-matrix):not(#tab-adjust), .flex-col > .flex-col, .bg-white > .flex, .flex-col > .flex-col > .flex {
+                display: none !important;
+            }
+
+            /* 矩陣表格優化 */
+            #matrix-table-container table, #matrix-table-container-final table {
+                width: 100% !important; /* 確保表格佔滿頁面寬度 */
+                table-layout: auto !important; /* 讓單元格寬度自適應 */
+            }
+
+            #matrix-table-container th, #matrix-table-container-final th,
+            #matrix-table-container td, #matrix-table-container-final td {
+                padding: 0.1rem 0.2rem !important; /* 進一步縮小內邊距 */
+                font-size: 8pt !important; /* 縮小字體 */
+                line-height: 1 !important;
+                height: auto !important;
+                box-sizing: border-box;
+                border: 1px solid #ccc !important;
+            }
+
+            .sticky-col {
+                position: static !important; /* 移除 sticky 效果 */
+                background-color: #f3f4f6 !important;
+            }
+        }
+        
+        /* PNG/JPEG Export Cleanup 修正文字跑位 */
+        .png-capture-mode button {
+            box-shadow: none !important; /* 移除陰影，簡化渲染 */
+            
+            /* 強制垂直/水平置中: line-height = height 確保文字在單行時垂直置中 */
+            line-height: 32px !important; 
+            text-align: center !important;
+            
+            /* NEW: 消除所有可能導致跑位的邊距和內邊距，並鎖定高度 */
+            height: 32px !important; 
+            padding: 0 !important;
+            margin: 0 !important;
+            
+            /* 移除 flex 確保 line-height 適用 */
+            display: block !important; 
+            
+            /* NEW: 確保 PNG 匯出時文字為黑色，避免被背景色淡化 */
+            color: #000000 !important;
+            font-weight: bold !important;
+            font-size: 14px !important; /* 稍微放大字體，確保清晰 */
+        }
+
+        /* NEW: 修正 PNG 匯出時表頭文字被裁切 */
+        .png-capture-mode thead th div {
+            white-space: nowrap !important; /* 確保文字不換行 */
+            overflow: visible !important;   /* 確保內容不被隱藏 */
+            /* 讓標題文字顏色與加粗在匯出時生效 */
+            color: #000000 !important;
+            font-weight: bold !important;
+            font-size: 12px !important;
+        }
+
+        /* 確保排班按鈕在正常模式下也能水平置中 */
+        #matrix-table-container button, #matrix-table-container-final button {
+             text-align: center;
+        }
+
+    </style>
+    
+    <script>
+        // ----------------------------------------------------
+        // 全域變數 - 狀態
+        // ----------------------------------------------------
+        
+        let currentViewDate = new Date();
+        let selectedDate = null;
+        let selectedJobId = null; 
+
+        // NEW: 最終調整後的排班表，不受規則影響
+        let finalScheduleData = {}; 
+
+        // 預設資料 (將在載入時被 localStorage 覆寫或寫入)
+        const AVAILABLE_COLORS = [
+            'red-500', 'blue-500', 'green-500', 'yellow-500', 
+            'purple-500', 'pink-500', 'teal-500', 'indigo-500'
+        ];
+        let staffColors = {}; 
+        let scheduleData = {}; 
+        let fixedCycleAnchors = {};
+        let jobs = [
+            // 注意：這裡的 code 依然需要手動維護或在 loadDataFromLocalStorage 時補齊，因為 HTML 模板中的按鈕也需要顯示 code
+            { id: 'day-off', name: '公休 (Day Off)', code: '休', rotation: 'none', pool: [] }, 
+            { id: 'job1', name: '煮飯筍乾', code: '煮', rotation: 'monthly', pool: ['菲', '玲'] },
+            { id: 'job2', name: '開店', code: '開', rotation: 'weekly', pool: ['雯', '春'] },
+            { id: 'job3', name: '洗菜', code: '洗', rotation: 'weekly', pool: ['美', '雲'] },
+            { id: 'job4', name: '內垃圾', code: '內', rotation: 'biweekly', pool: ['雯', '美', '雲'] },
+            { id: 'job5', name: '外垃圾', code: '外', rotation: 'weekly', pool: ['雯', '美', '雲'] },
+            { id: 'job6', name: '煮抬飯', code: '飯', rotation: 'daily', pool: ['雯', '雲', '美'] },
+            { id: 'job7', name: '切菜', code: '切', rotation: 'daily', pool: ['玲', '菲', '春', '美', '雯', '雲'] },
+        ];
+        
+        const TAB_TITLES = {
+            'schedule': '月曆排班 (Schedule)',
+            'matrix': '矩陣排班 (Working)',
+            'adjust': '最終調整 (Final)', // NEW
+            'config': '工作設定 (Job Config)',
+            'overview': '統計總覽 (Overview)'
+        };
+        
+        const LOCAL_STORAGE_KEY = 'scheduleApp_data_v1';
+
+        // ----------------------------------------------------
+        // 本地儲存 (LOCAL STORAGE) 邏輯
+        // ----------------------------------------------------
+
+        function ensureJobCodes() {
+            // 確保每個 job 都有 code，如果沒有，使用名稱的首字
+            jobs = jobs.map(job => {
+                if (!job.code || job.code.length === 0) {
+                    return { ...job, code: job.name.substring(0, 1) };
+                }
+                return job;
+            });
+        }
+
+        function loadDataFromLocalStorage() {
+            try {
+                const storedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+                if (storedData) {
+                    const data = JSON.parse(storedData);
+                    
+                    // 覆寫本地狀態
+                    if (data.jobs && data.jobs.length > 0) jobs = data.jobs;
+                    if (data.scheduleData) scheduleData = data.scheduleData;
+                    if (data.finalScheduleData) finalScheduleData = data.finalScheduleData; // NEW
+                    if (data.staffColors) staffColors = data.staffColors;
+                    if (data.fixedCycleAnchors) fixedCycleAnchors = data.fixedCycleAnchors;
+                    
+                    console.log("Data loaded from localStorage.");
+                } else {
+                    console.log("No data found in localStorage. Using default data.");
+                    // 如果本地沒有數據，則保存當前的預設數據
+                    saveDataToLocalStorage();
+                }
+            } catch (e) {
+                console.error("Error loading from localStorage:", e);
+            }
+            // 確保載入後所有的 job 都有 code
+            ensureJobCodes();
+        }
+        
+        function saveDataToLocalStorage() {
+            try {
+                // 儲存前先確保 code 存在
+                ensureJobCodes(); 
+                
+                const dataToSave = {
+                    jobs: jobs,
+                    scheduleData: scheduleData,
+                    finalScheduleData: finalScheduleData, // NEW
+                    staffColors: staffColors,
+                    fixedCycleAnchors: fixedCycleAnchors,
+                    lastUpdated: new Date().toISOString()
+                };
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
+                console.log("Data saved to localStorage.");
+            } catch (e) {
+                console.error("Error saving to localStorage:", e);
+            }
+        }
+        
+        
+        // ----------------------------------------------------
+        // 共用工具函數
+        // ----------------------------------------------------
+
+        function getMonthDetails(date) {
+            const year = date.getFullYear();
+            const month = date.getMonth(); // 0-11
+            
+            const firstDayOfMonth = new Date(year, month, 1);
+            const lastDayOfMonth = new Date(year, month + 1, 0);
+            const numDays = lastDayOfMonth.getDate();
+            const firstWeekday = firstDayOfMonth.getDay(); // 0 (Sun) - 6 (Sat)
+            
+            return { year, month: month + 1, numDays, firstWeekday };
+        }
+
+        function getPersonAbbreviation(name) {
+             return name && name.length > 0 ? name[0] : '？';
+        }
+
+        function getRotationText(rotation) {
+            const rotationMap = {
+                'daily': '每日輪替',
+                'weekly': '每週輪替',
+                'biweekly': '隔週輪替',
+                'monthly': '整個月負責',
+                'none': '無'
+            };
+            return rotationMap[rotation] || '無輪替';
+        }
+        
+        /**
+         * @description 根據工作ID和人員縮寫，獲取該人員的全名和顏色
+         */
+        function getPersonDetails(jobId, personAbbr) {
+            if (personAbbr === '休') return { fullName: '公休', color: 'gray-500' };
+
+            const job = jobs.find(j => j.id === jobId);
+            if (!job) return { fullName: '未知', color: 'gray-500' };
+            
+            // 根據縮寫找到全名
+            const fullName = job.pool.find(p => getPersonAbbreviation(p) === personAbbr);
+            
+            if (fullName && staffColors[fullName]) {
+                return { fullName: fullName, color: staffColors[fullName] };
+            }
+            return { fullName: fullName || '未知', color: 'gray-500' };
+        }
+
+
+        /**
+         * @description 遍歷所有工作事項的人選池，初始化或更新 staffColors
+         */
+        function initStaffColors() {
+            const allStaff = new Set();
+            jobs.forEach(job => {
+                job.pool.forEach(person => allStaff.add(person));
+            });
+
+            const currentStaff = Object.keys(staffColors);
+            
+            let colorIndex = 0;
+            
+            // 賦予新人員顏色 (如果沒有，就用循環顏色)
+            Array.from(allStaff).forEach(person => {
+                if (!staffColors[person]) {
+                    staffColors[person] = AVAILABLE_COLORS[colorIndex % AVAILABLE_COLORS.length];
+                }
+                colorIndex++;
+            });
+
+            // 清理已不在任何池中的人員
+            currentStaff.forEach(person => {
+                let foundInPool = false;
+                for (const job of jobs) {
+                    if (job.pool.includes(person)) {
+                        foundInPool = true;
+                        break;
+                    }
+                }
+                if (!foundInPool) {
+                    delete staffColors[person];
+                }
+            });
+            // 注意：這裡只更新本地狀態，需要外部呼叫 saveDataToLocalStorage() 來持久化 staffColors 的變動
+        }
+
+
+        function updateAllViews() {
+            initStaffColors(); // 確保每次渲染前顏色配置是最新的
+            // 重新渲染所有可能受影響的視圖
+            renderCalendar();
+            renderMatrixView(); 
+            renderAdjustView(); // NEW: 渲染調整後的矩陣
+            renderJobConfigList();
+            renderStaffLoadList(); 
+        }
+        
+        /**
+         * @description 檢查一個日期所屬月份的數據在指定數據源中是否存在。
+         * @param {Date} targetDate - 要檢查的日期。
+         * @param {object} dataStore - 要檢查的數據源 (scheduleData 或 finalScheduleData)。
+         * @returns {boolean} - true 表示該月份在數據源中有任何排班記錄。
+         */
+        function isMonthDataPresent(targetDate, dataStore) {
+            const { year, month, numDays } = getMonthDetails(targetDate);
+            const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+
+            for (let day = 1; day <= numDays; day++) {
+                const dateStr = `${monthStr}-${String(day).padStart(2, '0')}`;
+                if (dataStore[dateStr] && dataStore[dateStr].length > 0) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * @description 將工作排班表 (scheduleData) 的當月資料同步到最終調整表 (finalScheduleData)。
+         * @param {Date} targetDate - 要同步的月份。
+         */
+        function syncScheduleData(targetDate) {
+            const { year, month, numDays } = getMonthDetails(targetDate);
+            const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+            
+            // 檢查 finalScheduleData 當月是否有任何數據
+            if (isMonthDataPresent(targetDate, finalScheduleData)) {
+                return; // 如果已經有調整數據，則不進行自動同步
+            }
+
+            console.log(`[同步] ${monthStr} 的最終調整表為空，從工作排班表同步資料。`);
+            
+            for (let day = 1; day <= numDays; day++) {
+                const dateStr = `${monthStr}-${String(day).padStart(2, '0')}`;
+                
+                if (scheduleData[dateStr]) {
+                    // 深度複製排班陣列
+                    finalScheduleData[dateStr] = JSON.parse(JSON.stringify(scheduleData[dateStr]));
+                } else {
+                    // 確保目標數據源中沒有該日的空記錄
+                    if (finalScheduleData[dateStr]) delete finalScheduleData[dateStr];
+                }
+            }
+            saveDataToLocalStorage(); // 儲存同步結果
+        }
+
+        // 輔助函數：找到一個日期所屬的週期起始日 (星期一或每月 1 號)
+        function findCycleStart(date, rotationType) {
+            if (rotationType === 'monthly') {
+                return new Date(date.getFullYear(), date.getMonth(), 1);
+            }
+            
+            // 對於 weekly/biweekly，找到最近的星期一 (1)
+            let cycleStart = new Date(date);
+            let day = cycleStart.getDay(); // 0 (Sun) - 6 (Sat)
+            let diff = day === 0 ? -6 : 1 - day; // 如果是星期日 (0)，則退後 6 天 (到上週一)；否則退後到本週一
+            
+            cycleStart.setDate(cycleStart.getDate() + diff);
+            // 確保時間部分歸零
+            cycleStart.setHours(0, 0, 0, 0);
+            return cycleStart;
+        }
+
+        /**
+         * @description 檢查一個日期是否屬於隔週排班的「ON」週 (ON/OFF/ON/OFF)
+         * @param {Date} date - 要檢查的日期
+         * @returns {boolean} - true 表示該週應排班 (ON 週), false 表示應跳過 (OFF 週)
+         */
+        function isBiweeklyAssignmentWeek(date) {
+            // 錨定點：2025-01-01 的當週星期一為 2024-12-30 (作為 Week 0 的起始日)
+            const universalAnchor = findCycleStart(new Date('2025-01-01'), 'weekly'); 
+
+            // 找到當前日期所屬週的星期一
+            const currentWeekMon = findCycleStart(date, 'weekly');
+
+            // 計算兩者之間相差多少毫秒
+            const diffInMs = currentWeekMon.getTime() - universalAnchor.getTime();
+            
+            // 計算兩者之間相差多少天 (必須是 7 的倍數)
+            const diffInDays = diffInMs / (1000 * 60 * 60 * 24);
+            
+            // 計算自錨點以來的週數 (0, 1, 2, 3...)
+            // 使用 Math.floor 確保是整數週數 (更安全地處理整數除法)
+            const weekNumber = Math.floor(diffInDays / 7); 
+            
+            // 判斷是否為 ON 週 (週數為偶數，即週 0, 2, 4... 排班)
+            return (weekNumber % 2 === 0);
+        }
+
+        // ----------------------------------------------------
+        // UI 互動函數
+        // ----------------------------------------------------
+
+        // 底部 Tab Bar 切換
+        function switchTab(tabId, button) {
+            const headerTitle = document.getElementById('header-title');
+            const tabElement = document.getElementById(`tab-${tabId}`);
+            
+            // 修正 1: 增加安全檢查，確保核心元素已載入
+            if (!headerTitle || !tabElement) {
+                console.warn(`switchTab: Critical DOM elements not ready for tab ${tabId}.`);
+                return;
+            }
+
+            // [修正] Step 1: 隱藏所有內容區塊，並移除 active-tab 標記
+            document.querySelectorAll('.tab-content').forEach(el => {
+                el.classList.remove('active-tab');
+                el.classList.add('hidden'); // NEW: 確保所有 Tab 被隱藏
+            });
+            
+            // [修正] Step 2: 顯示選中的內容區塊，並加上 active-tab 標記
+            tabElement.classList.remove('hidden'); // NEW: 顯示選中的 Tab
+            tabElement.classList.add('active-tab');
+
+
+            headerTitle.textContent = TAB_TITLES[tabId];
+
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('text-blue-500');
+                btn.classList.add('text-gray-400');
+            });
+            // 確保 button 不為 null (在 window.onload 時已檢查)
+            if (button) {
+                button.classList.remove('text-gray-400');
+                button.classList.add('text-blue-500');
+            }
+
+
+            if (tabId === 'schedule') renderCalendar();
+            if (tabId === 'matrix') renderMatrixView(); // 呼叫工作矩陣渲染函數
+            if (tabId === 'adjust') renderAdjustView(); // NEW: 呼叫最終調整矩陣渲染函數
+            if (tabId === 'config') renderJobConfigList();
+            if (tabId === 'overview') renderStaffLoadList();
+        }
+
+        // 月曆導航
+        function changeMonth(offset) {
+            currentViewDate.setMonth(currentViewDate.getMonth() + offset);
+            
+            // 重新渲染當前開啟的視圖 (月曆、矩陣、調整或總覽)
+            if (document.getElementById('tab-schedule') && document.getElementById('tab-schedule').classList.contains('active-tab')) {
+                renderCalendar();
+            } else if (document.getElementById('tab-matrix') && document.getElementById('tab-matrix').classList.contains('active-tab')) {
+                renderMatrixView();
+            } else if (document.getElementById('tab-adjust') && document.getElementById('tab-adjust').classList.contains('active-tab')) { // NEW
+                renderAdjustView();
+            } else if (document.getElementById('tab-overview') && document.getElementById('tab-overview').classList.contains('active-tab')) {
+                renderStaffLoadList();
+            }
+        }
+
+        // ----------------------------------------------------
+        // 儲存邏輯 (通用)
+        // ----------------------------------------------------
+
+        // 輔助函數：檢查一個日期是否為公休
+        function isDayOff(dateStr, dataStore = scheduleData) {
+            const dailySchedule = dataStore[dateStr] || [];
+            return dailySchedule.some(item => item.jobId === 'day-off');
+        }
+
+        // 輔助函數：處理每日輪替的連續填滿 (包含公休順延)
+        function autoScheduleDailyJob(startDateStr, jobId, firstPersonFullName) {
+            const { year, month, numDays } = getMonthDetails(currentViewDate);
+            const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+            const job = jobs.find(j => j.id === jobId);
+            
+            if (!job || job.pool.length === 0) return;
+
+            let lastPersonFullName = firstPersonFullName;
+            let poolIndex = job.pool.findIndex(p => p === firstPersonFullName);
+            const startDay = new Date(startDateStr).getDate();
+            
+            // 遍歷從手動設定日(startDay)到月底的所有日子
+            for (let day = startDay; day <= numDays; day++) {
+                const dateStr = `${monthStr}-${String(day).padStart(2, '0')}`;
+
+                // 跳過已手動設為公休的日子 (人員輪替會順延)
+                if (isDayOff(dateStr)) continue; 
+
+                let personToAssign = lastPersonFullName;
+                let shouldRotate = false; 
+
+                if (day > startDay) { // 每天都輪替 (除了手動設定的那一天)
+                     shouldRotate = true;
+                } else {
+                    personToAssign = firstPersonFullName;
+                }
+                
+                if (shouldRotate) {
+                    // 輪替到下一個人
+                    poolIndex = (poolIndex + 1) % job.pool.length;
+                    personToAssign = job.pool[poolIndex];
+                }
+                
+                // 執行排班
+                if (personToAssign) {
+                    let dailyAssignments = scheduleData[dateStr] || [];
+                    let index = dailyAssignments.findIndex(item => item.jobId === jobId);
+
+                    const assignmentData = { jobId: jobId, person: getPersonAbbreviation(personToAssign) };
+
+                    if (index > -1) {
+                        dailyAssignments[index] = assignmentData;
+                    } else {
+                        dailyAssignments = dailyAssignments.filter(item => item.jobId !== 'day-off');
+                        dailyAssignments.push(assignmentData);
+                    }
+                    
+                    scheduleData[dateStr] = dailyAssignments;
+                    lastPersonFullName = personToAssign; // 更新狀態以供下一個循環使用
+                }
+            }
+            
+            console.log(`[智能排班] ${job.name} 日輪替已從 ${startDateStr} 開始自動排滿本月。`);
+            saveDataToLocalStorage();
+        }
+
+        // 輔助函數：尋找日輪替事項的最新手動排班點，並從該點重新排程 (用於公休變動時)
+        function recalcDailyJobFromAnchor(jobId) {
+            const { year, month, numDays } = getMonthDetails(currentViewDate);
+            const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+            const job = jobs.find(j => j.id === jobId);
+            
+            if (!job || job.rotation !== 'daily' || job.pool.length === 0) return;
+
+            let seedDateStr = null;
+            let seedPersonFullName = null;
+
+            // 1. 尋找最早的手動排班點 (種子點)
+            for (let day = 1; day; day++) {
+                const dateStr = `${monthStr}-${String(day).padStart(2, '0')}`;
+                const assignment = scheduleData[dateStr] ? 
+                    scheduleData[dateStr].find(a => a.jobId === jobId) : null;
+                
+                if (assignment) {
+                    seedDateStr = dateStr;
+                    seedPersonFullName = job.pool.find(p => getPersonAbbreviation(p) === assignment.person) || assignment.person;
+                    break; 
+                }
+            }
+            
+            // 2. 如果找到起始點，則重新排班 (清除所有舊排班並重算)
+            if (seedDateStr) {
+                // 清除該工作事項本月所有排班 (除了種子點)
+                for (let day = 1; day <= numDays; day++) {
+                    const dateStr = `${monthStr}-${String(day).padStart(2, '0')}`;
+                    if (dateStr !== seedDateStr) {
+                        scheduleData[dateStr] = (scheduleData[dateStr] || []).filter(a => a.jobId !== jobId);
+                        if (scheduleData[dateStr].length === 0) delete scheduleData[dateStr];
+                    }
+                }
+
+                // 從種子排班日開始，智能填滿本月剩餘週期
+                autoScheduleDailyJob(seedDateStr, jobId, seedPersonFullName);
+                // autoScheduleDailyJob 內部會呼叫 saveDataToLocalStorage
+            }
+        }
+
+        /**
+         * @description 重新計算固定週期的工作排班 (每週/隔週/月)
+         * @param {string} jobId - 工作事項ID
+         * @param {string} [excludeDateStr=null] - 排除自動清除和排班的日期 (用於手動覆蓋)
+         */
+        function recalcFixedJob(jobId, excludeDateStr = null) {
+            const { year, month, numDays } = getMonthDetails(currentViewDate);
+            const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+            const job = jobs.find(j => j.id === jobId);
+            
+            if (!job || (job.rotation === 'daily' || job.rotation === 'none') || job.pool.length === 0) return;
+            
+            const pool = job.pool;
+            
+            // 1. 清除所有 assignments for this job for the *entire* month (排除手動覆蓋的日期)
+            for (let day = 1; day <= numDays; day++) {
+                const clearDateStr = `${monthStr}-${String(day).padStart(2, '0')}`;
+                
+                // 如果是手動覆蓋的日期，則跳過清除
+                if (clearDateStr === excludeDateStr) continue; 
+
+                scheduleData[clearDateStr] = (scheduleData[clearDateStr] || []).filter(a => a.jobId !== jobId);
+                if (scheduleData[clearDateStr].length === 0) delete scheduleData[clearDateStr];
+            }
+
+            // 2. 確定 Day 1 的起始人員索引 (基於錨點)
+            let currentPoolIndex = 0; 
+            
+            if (fixedCycleAnchors[jobId]) {
+                 const anchor = fixedCycleAnchors[jobId];
+                 const anchorPerson = anchor.person;
+                 
+                 // a. 找到錨點日期所屬的週期起始日 (星期一 或 月初)
+                 let anchorDate = new Date(year, month - 1, anchor.startDay);
+                 let anchorCycleStartDate = findCycleStart(anchorDate, job.rotation);
+                 
+                 // b. 找到本月第一個週期起始日 (作為計算基線)
+                 let firstCycleStartDate = findCycleStart(new Date(year, month - 1, 1), job.rotation);
+                 
+                 // c. 計算從本月第一個週期開始日到錨點週期發生了多少次人員輪替
+                 let cyclesElapsed = 0;
+                 // 人員輪替週期：週輪替 7 天, 隔週輪替 14 天
+                 let daysInRotation = job.rotation === 'weekly' ? 7 : (job.rotation === 'biweekly' ? 14 : numDays);
+                 
+                 let tempCycleDate = new Date(firstCycleStartDate);
+                 
+                 // Count cycles elapsed until the anchor's cycle start
+                 while(tempCycleDate.getTime() < anchorCycleStartDate.getTime()) {
+                     tempCycleDate.setDate(tempCycleDate.getDate() + daysInRotation);
+                     cyclesElapsed++;
+                 }
+
+                 // d. 根據 Anchor Index 和 Cycles Elapsed 計算 Day 1 的 Person Index
+                 let anchorIndexInPool = pool.findIndex(p => p === anchorPerson);
+                 
+                 // Day 1's Cycle Index = (Anchor Index - Cycles Elapsed) % Pool Length
+                 currentPoolIndex = (anchorIndexInPool - cyclesElapsed) % pool.length;
+                 if (currentPoolIndex < 0) currentPoolIndex += pool.length; // 確保索引為正
+            }
+
+            // 3. 運行全月排班 (Auto-fill)
+            let currentPerson = pool[currentPoolIndex];
+
+            /**
+             * @description 專門用於隔週輪替的週期計算 (基於手動設定的錨點)
+             */
+            const getJobBiweeklyStatus = (date) => {
+                const anchor = fixedCycleAnchors[jobId];
+                if (!anchor) return isBiweeklyAssignmentWeek(date); // 若無錨點，使用全域規則 (不應發生)
+
+                const anchorDate = new Date(year, month - 1, anchor.startDay);
+                const anchorCycleStart = findCycleStart(anchorDate, 'weekly');
+                const currentWeekMon = findCycleStart(date, 'weekly');
+
+                const diffInMs = currentWeekMon.getTime() - anchorCycleStart.getTime();
+                const diffInDays = diffInMs / (1000 * 60 * 60 * 24);
+                
+                // 計算週數差。錨點週 (weeksSinceAnchor = 0) 永遠是 ON 週
+                const weeksSinceAnchor = Math.floor(diffInDays / 7); 
+                
+                // 偶數週數 (0, 2, 4...) 則是 ON 週
+                return (weeksSinceAnchor % 2 === 0);
+            };
+
+
+            for (let day = 1; day <= numDays; day++) {
+                const dateStr = `${monthStr}-${String(day).padStart(2, '0')}`;
+                const currentDate = new Date(year, month - 1, day);
+                const currentWeekday = currentDate.getDay(); // 0=Sun, 1=Mon
+                
+                let isAssignmentDay = true; // 預設為排班日
+                let shouldRotate = false;    // 人員輪替檢查
+
+                // 如果是手動覆蓋的日期 (排除日期)，我們只更新 rotation 狀態，然後跳過自動排班
+                if (dateStr === excludeDateStr) {
+                    // 獲取手動設定的人員全名，並更新 currentPerson 和 currentPoolIndex
+                    const manualAssignment = scheduleData[dateStr].find(a => a.jobId === jobId);
+                    if (manualAssignment) {
+                         const manualPersonFullName = pool.find(p => getPersonAbbreviation(p) === manualAssignment.person) || manualAssignment.person;
+                         currentPerson = manualPersonFullName;
+                         currentPoolIndex = pool.findIndex(p => p === currentPerson);
+                    }
+                    continue; // 跳過自動排班邏輯
+                }
+
+
+                if (job.rotation === 'monthly') {
+                     // 月輪替：只有月第一天輪替人員
+                     if (day === 1) shouldRotate = true; 
+                } 
+                
+                // 檢查是否為週週期起始日 (星期一)
+                if (currentWeekday === 1) { 
+                    if (job.rotation === 'weekly') {
+                        shouldRotate = true; // 每週一換人
+                    }
+                }
+                
+                // --- 修正後的隔週輪替邏輯 ---
+                if (job.rotation === 'biweekly') {
+                    // 根據錨點計算當前週的 ON/OFF 狀態
+                    const isCurrentWeekOn = getJobBiweeklyStatus(currentDate);
+                    
+                    if (!isCurrentWeekOn) {
+                        isAssignmentDay = false; // 如果是 OFF 週，則整週不排班
+                    }
+
+                    // 輪替只在 ON 週的星期一發生
+                    if (currentWeekday === 1 && isCurrentWeekOn) { 
+                        shouldRotate = true;
+                    }
+                }
+                // --- 修正後的隔週輪替邏輯 END ---
+                
+                
+                // 執行人員輪替
+                if (shouldRotate) {
+                     // 輪替發生，更新人員索引
+                     currentPoolIndex = (currentPoolIndex + 1) % pool.length;
+                     currentPerson = pool[currentPoolIndex];
+                }
+                
+                // --- 4. 執行指派 (僅限於自動排班日) ---
+                // 如果是公休或非排班週，則跳過
+                if (isDayOff(dateStr) || !isAssignmentDay) continue; 
+
+                // 執行指派 (使用當前週期人員)
+                if (currentPerson) {
+                     let dailyAssignments = scheduleData[dateStr] || [];
+                     dailyAssignments.push({ jobId: jobId, person: getPersonAbbreviation(currentPerson) });
+                     scheduleData[dateStr] = dailyAssignments;
+                }
+            }
+            saveDataToLocalStorage(); // 儲存固定週期排班結果
+        }
+
+
+        // 儲存排班 (用於月曆點擊和矩陣快速編輯)
+        function saveScheduleAssignment(dateStr, jobId, personName, viewMode = 'working') {
+            
+            // 決定要儲存到哪個數據源
+            let dataStore = viewMode === 'final' ? finalScheduleData : scheduleData;
+            
+            if (!dataStore[dateStr]) {
+                dataStore[dateStr] = [];
+            }
+            
+            // 捕獲修改前的公休狀態 (基於當前 dataStore)
+            const oldDayOffStatus = isDayOff(dateStr, dataStore); 
+
+            let shouldRecalcFixed = false;
+            let excludeDateStr = null; // 用於排除自動清除和排班的日期
+
+            // 1. 公休特殊處理
+            if (jobId === 'day-off' && personName !== '-- 取消排班 --') {
+                 // 設定為公休，清除所有其他排班
+                dataStore[dateStr] = [{ jobId: 'day-off', person: '休' }];
+            } 
+            // 2. 取消公休
+            else if (jobId === 'day-off' && personName === '-- 取消排班 --') {
+                dataStore[dateStr] = dataStore[dateStr].filter(item => item.jobId !== 'day-off');
+            }
+            // 3. 儲存一般工作 
+            else if (jobId !== 'day-off') {
+                // 如果正在排一般工作，先確保該日不是公休
+                dataStore[dateStr] = dataStore[dateStr].filter(item => item.jobId !== 'day-off');
+
+                const index = dataStore[dateStr].findIndex(item => item.jobId === jobId);
+                
+                if (personName && personName !== '-- 取消排班 --') {
+                    if (index > -1) {
+                        dataStore[dateStr][index].person = getPersonAbbreviation(personName);
+                    } else {
+                        dataStore[dateStr].push({ jobId: jobId, person: getPersonAbbreviation(personName) });
+                    }
+                    
+                    // --- 觸發連續排班 (僅在 Working 模式下) ---
+                    if (viewMode === 'working') {
+                        const job = jobs.find(j => j.id === jobId);
+                        const personFullName = personName;
+
+                        if (job && job.rotation === 'daily') {
+                            // 日輪替：從手動設定日開始，重新填滿
+                            autoScheduleDailyJob(dateStr, jobId, personFullName); 
+                        } else if (job && (job.rotation === 'weekly' || job.rotation === 'biweekly' || job.rotation === 'monthly')) {
+                            // 固定週期：設定錨點並重新計算全月
+                            fixedCycleAnchors[jobId] = { startDay: new Date(dateStr).getDate(), person: personFullName };
+                            shouldRecalcFixed = true;
+                            excludeDateStr = dateStr; // 設置排除日期 (保留手動排班結果)
+                        }
+                    }
+                    // --- 結束 ---
+
+                } else {
+                    // Remove assignment
+                    if (index > -1) {
+                        dataStore[dateStr].splice(index, 1);
+                        
+                        // 如果移除了固定週期的排班，且在 Working 模式，則重新計算 (但不設錨點)
+                        if (viewMode === 'working') {
+                            const job = jobs.find(j => j.id === jobId);
+                             if (job && (job.rotation === 'weekly' || job.rotation === 'biweekly' || job.rotation === 'monthly')) {
+                                // 清除錨點並重新計算
+                                delete fixedCycleAnchors[jobId];
+                                shouldRecalcFixed = true; 
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 清理空記錄
+            if (dataStore[dateStr] && dataStore[dateStr].length === 0) {
+                delete dataStore[dateStr];
+            }
+
+            // 4. 執行固定週期重新計算 (僅在 Working 模式下)
+            if (viewMode === 'working' && shouldRecalcFixed) {
+                recalcFixedJob(jobId, excludeDateStr);
+            }
+
+
+            // 5. 檢查公休狀態是否改變，若改變則重新計算每日輪替事項 (僅在 Working 模式下)
+            const newDayOffStatus = isDayOff(dateStr, dataStore); 
+
+            if (viewMode === 'working' && oldDayOffStatus !== newDayOffStatus) {
+                // Day Off 狀態改變，重新計算所有每日輪替的事項
+                jobs.filter(j => j.rotation === 'daily').forEach(job => {
+                    recalcDailyJobFromAnchor(job.id); 
+                });
+            }
+
+            // 儲存數據並重新渲染視圖
+            saveDataToLocalStorage();
+            updateAllViews();
+            closeScheduleModal();
+        }
+        
+        // ----------------------------------------------------
+        // 清除排班邏輯
+        // ----------------------------------------------------
+        function clearAllAssignments() {
+            const { year, month, numDays } = getMonthDetails(currentViewDate);
+            const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+            
+            // 決定要清除的數據源 (如果用戶在 Final 頁面，就只清除 Final)
+            const activeTabId = document.querySelector('.tab-content.active-tab').id;
+            const targetDataStore = (activeTabId === 'tab-adjust') ? finalScheduleData : scheduleData;
+            const targetName = (activeTabId === 'tab-adjust') ? '調整' : '工作';
+
+            // 清除本月所有排班數據
+            for (let day = 1; day <= numDays; day++) {
+                const dateStr = `${monthStr}-${String(day).padStart(2, '0')}`;
+                
+                delete targetDataStore[dateStr];
+            }
+            
+            // 僅在清除 Working Schedule 時清除固定週期的錨點
+            if (activeTabId !== 'tab-adjust') {
+                fixedCycleAnchors = {};
+            }
+
+
+            // 儲存並重新渲染所有視圖
+            saveDataToLocalStorage();
+            updateAllViews();
+            console.log(`[清除完成] ${monthStr} 的所有 ${targetName} 排班記錄已清除。`);
+        }
+
+        // ----------------------------------------------------
+        // 月曆排班 (Schedule View) 邏輯
+        // ----------------------------------------------------
+
+        function renderCalendar() {
+            const calendarGrid = document.getElementById('calendar-grid');
+            const currentMonthTitle = document.getElementById('current-month');
+            
+            // 修正 2: 增加安全檢查，如果 DOM 元素未就緒則跳過渲染
+            if (!calendarGrid || !currentMonthTitle) {
+                console.warn("renderCalendar: DOM elements not ready, skipping render.");
+                return; 
+            }
+
+            const { year, month, numDays, firstWeekday } = getMonthDetails(currentViewDate);
+            
+            currentMonthTitle.textContent = `${year}年 ${month}月`;
+            calendarGrid.innerHTML = ''; 
+
+            // 1. 填補月份前的空白
+            for (let i = 0; i < firstWeekday; i++) {
+                const prevMonthDay = new Date(year, month - 1, 0).getDate() - firstWeekday + i + 1;
+                calendarGrid.innerHTML += `
+                    <div class="day-cell p-1 h-16 border rounded-lg flex flex-col justify-between items-start text-sm bg-gray-50 opacity-50">
+                        <span class="text-xs font-bold text-gray-400">${prevMonthDay}</span>
+                    </div>
+                `;
+            }
+
+            // 2. 渲染當月日期 (使用 Working Schedule 數據)
+            for (let day = 1; day <= numDays; day++) {
+                const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const dailySchedule = scheduleData[dateStr] || []; // Use scheduleData
+                
+                const isDayOff = dailySchedule.some(item => item.jobId === 'day-off');
+                let workSlotsHtml = '';
+                let cellExtraClass = '';
+
+                if (isDayOff) {
+                    workSlotsHtml = `<span class="text-xs text-white px-2 py-0.5 rounded-full bg-gray-500 font-bold">公休</span>`;
+                    cellExtraClass = 'bg-gray-100/70'; 
+                } else {
+                    workSlotsHtml = dailySchedule.map(item => {
+                        const job = jobs.find(j => j.id === item.jobId);
+                        // 獲取人員的顏色
+                        const { color } = getPersonDetails(item.jobId, item.person); 
+                        const jobCode = job ? job.code : item.jobId;
+                        const personCode = item.person; // 這裡 person 已經是縮寫
+
+                        return `<span class="text-xs text-white px-1 rounded-full bg-${color} shadow-sm">${jobCode}/${personCode}</span>`;
+                    }).join('');
+                }
+
+                const today = new Date();
+                const currentDay = new Date(year, month - 1, day);
+                const isToday = today.toDateString() === currentDay.toDateString();
+                const todayClass = isToday ? 'border-blue-500 ring-2 ring-blue-500 bg-blue-50' : 'bg-white';
+
+
+                calendarGrid.innerHTML += `
+                    <div class="day-cell p-1 h-16 border rounded-lg flex flex-col justify-between items-start text-sm shadow-sm transition duration-150 ease-in-out hover:shadow-md cursor-pointer ${todayClass} ${cellExtraClass}" onclick="showScheduleModal('${dateStr}', 'working', null)">
+                        <span class="text-xs font-bold text-gray-800">${day}</span>
+                        <div class="work-slots space-y-0.5 w-full">
+                            ${workSlotsHtml}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        
+        // ----------------------------------------------------
+        // 矩陣排班 (Matrix View - Working) 邏輯
+        // ----------------------------------------------------
+        function renderMatrixView() {
+            // Re-use logic for Working Schedule. Target: matrix-table-container-working
+            const containerId = 'matrix-table-container-working';
+            const monthTitleId = 'matrix-current-month';
+            const dataStore = scheduleData;
+            const viewMode = 'working';
+            renderMatrixInternal(containerId, monthTitleId, dataStore, viewMode);
+        }
+
+        // ----------------------------------------------------
+        // 調整矩陣 (Matrix View - Final) 邏輯
+        // ----------------------------------------------------
+        function renderAdjustView() {
+            // NEW: 進入最終調整頁面時，先進行數據同步 (如果當月空白)
+            // syncScheduleData(currentViewDate); // 移除自動同步，改為手動按鈕複製
+            
+            // Re-use logic for Final Schedule. Target: matrix-table-container-final
+            const containerId = 'matrix-table-container-final';
+            const monthTitleId = 'adjust-current-month';
+            const dataStore = finalScheduleData;
+            const viewMode = 'final';
+            renderMatrixInternal(containerId, monthTitleId, dataStore, viewMode);
+        }
+
+        /**
+         * @description 通用的矩陣渲染函數
+         */
+        function renderMatrixInternal(containerId, monthTitleId, dataStore, viewMode) {
+            const { year, month, numDays } = getMonthDetails(currentViewDate);
+            const matrixContainer = document.getElementById(containerId);
+            const matrixMonthTitle = document.getElementById(monthTitleId);
+            
+            // 修正 3: 增加安全檢查，如果 DOM 元素未就緒則跳過渲染
+            if (!matrixContainer || !matrixMonthTitle) {
+                console.warn(`renderMatrixInternal: DOM elements not ready for ${containerId}, skipping render.`);
+                return;
+            }
+
+            matrixMonthTitle.textContent = `${year}年 ${month}月`;
+            
+            // 過濾掉 'day-off' 這一特殊 job，它不應作為一列出現
+            const displayJobs = jobs.filter(j => j.id !== 'day-off');
+
+            // 處理沒有工作事項的情況
+            if (displayJobs.length === 0) {
+                matrixContainer.innerHTML = '<p class="text-center text-gray-500 p-8">請先在「設定」中新增工作事項。</p>';
+                return;
+            }
+
+            // 1. 表格結構開始
+            let tableHTML = `
+                <table class="min-w-full divide-y divide-gray-200 border-collapse">
+                    <thead>
+                        <tr class="bg-gray-100 border-b border-gray-200">
+                            <th class="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider sticky-col" style="min-width: 60px;">日期</th>
+                            ${displayJobs.map(job => `
+                                <th class="px-2 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider bg-gray-100" style="min-width: 120px;">
+                                    <!-- NEW: 文字顏色設為純黑，加粗，字體加大到 text-base -->
+                                    <div class="text-black font-bold text-base" title="${job.name}">${job.name}</div>
+                                </th>
+                            `).join('')}
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+            `;
+
+            // 2. 渲染每日排班
+            for (let day = 1; day <= numDays; day++) {
+                const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const currentDate = new Date(year, month - 1, day);
+                const dayOfWeek = ['日', '一', '二', '三', '四', '五', '六'][currentDate.getDay()];
+                const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
+                
+                // 使用傳入的 dataStore
+                const dailySchedule = dataStore[dateStr] || []; 
+                const isTheDayOff = isDayOff(dateStr, dataStore); // Use dataStore in isDayOff
+                
+                tableHTML += `<tr class="${isWeekend ? 'bg-yellow-50/50' : 'hover:bg-gray-50'}">`;
+                
+                // 日期欄位 (固定列)
+                tableHTML += `
+                    <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900 sticky-col ${isWeekend ? 'bg-yellow-50/50' : 'bg-white'}">
+                        ${day} <span class="text-xs text-gray-500">(${dayOfWeek})</span>
+                    </td>
+                `;
+
+                // 工作事項排班儲存格
+                displayJobs.forEach(job => {
+                    const assignment = dailySchedule.find(item => item.jobId === job.id);
+                    const personCode = assignment ? assignment.person : '';
+                    
+                    let cellContent = '未排';
+                    let cellClass = 'border-gray-200 text-gray-400';
+                    // NEW: 將 viewMode 作為參數傳入
+                    let clickAction = `showScheduleModal('${dateStr}', '${viewMode}', '${job.id}', '${personCode}')`;
+
+                    if (isTheDayOff) {
+                        cellContent = '公休';
+                        cellClass = 'bg-gray-200 text-gray-500 border-gray-300 pointer-events-none';
+                        clickAction = '';
+                    } else if (assignment) {
+                        // 矩陣儲存格根據人員顏色著色
+                        const { color } = getPersonDetails(job.id, personCode);
+                        const baseColor = color.replace('-500', ''); 
+                        
+                        cellContent = personCode;
+                        cellClass = `bg-${baseColor}-100 border-${color} font-semibold text-gray-800`;
+                    }
+                    
+                    // NEW: 移除 Flex 相關類別，改由 CSS 中的 line-height 處理垂直置中
+                    tableHTML += `
+                        <td class="px-1 py-1 whitespace-nowrap text-sm text-center ${isTheDayOff ? 'bg-gray-100/70' : ''}">
+                            <button 
+                                class="w-full h-8 text-sm rounded-lg border ${cellClass} hover:bg-blue-50 transition duration-100 shadow-sm"
+                                onclick="${clickAction}"
+                                ${isTheDayOff ? 'disabled' : ''}
+                            >
+                                ${cellContent}
+                            </button>
+                        </td>
+                    `;
+                });
+                
+                tableHTML += `</tr>`;
+            }
+
+            // 3. 表格結構結束
+            tableHTML += `
+                    </tbody>
+                </table>
+            `;
+
+            matrixContainer.innerHTML = tableHTML;
+        }
+
+
+        // ----------------------------------------------------
+        // 工作設定 (Job Config) 邏輯
+        // ----------------------------------------------------
+
+        function renderJobConfigList() {
+            // 過濾掉 'day-off'
+            const editableJobs = jobs.filter(j => j.id !== 'day-off'); 
+
+            const jobListContainer = document.getElementById('job-list');
+            const staffColorContainer = document.getElementById('staff-color-list');
+
+            if (!jobListContainer || !staffColorContainer) {
+                 console.warn("renderJobConfigList: DOM elements not ready, skipping render.");
+                 return;
+            }
+
+            jobListContainer.innerHTML = '';
+            
+            editableJobs.forEach(job => {
+                const borderColor = 'gray-300'; // 統一使用灰色邊框
+                
+                jobListContainer.innerHTML += `
+                    <div class="p-3 bg-white rounded-xl shadow-md border-l-4 border-${borderColor}">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="font-bold text-lg text-gray-800">${job.name} (${job.code})</p>
+                                <p class="text-sm text-gray-500">輪替: ${getRotationText(job.rotation)}</p>
+                            </div>
+                            <button class="text-gray-400 hover:text-gray-600" onclick="showJobConfigModal('${job.id}')">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zm-3.18 3.094l-5.694 5.694-1.12.196 1.12-1.12.196-1.12 5.694-5.694 2.828 2.828z"/></svg>
+                            </button>
+                        </div>
+                        <p class="mt-2 text-sm text-gray-600">人選池: ${job.pool.join(', ')}</p>
+                    </div>
+                `;
+            });
+            
+            // NEW: Staff Color Rendering
+            initStaffColors(); // 確保 staffColors 是最新的
+            
+            staffColorContainer.innerHTML = '';
+            
+            // 排序人員以保持一致性
+            const sortedStaff = Object.keys(staffColors).sort();
+            
+            sortedStaff.forEach(person => {
+                const color = staffColors[person];
+                const personAbbr = getPersonAbbreviation(person);
+                
+                staffColorContainer.innerHTML += `
+                    <div class="p-3 bg-white rounded-xl shadow-md border-l-4 border-${color} flex justify-between items-center">
+                        <span class="font-bold text-lg text-gray-800">${person} (${personAbbr})</span>
+                        <button class="px-3 py-1 text-sm font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 shadow-md transition duration-150"
+                                onclick="showStaffColorModal('${person}', '${color}')">
+                            變更顏色
+                        </button>
+                    </div>
+                `;
+            });
+        }
+        
+        // 儲存或更新工作事項
+        function saveOrUpdateJobConfig(jobId) {
+            const form = document.getElementById('job-config-form');
+            
+            const newJobName = form.elements['name'].value;
+            
+            const newJobData = {
+                name: newJobName,
+                // NEW: 簡短代碼自動取事項名稱的首字
+                code: newJobName.substring(0, 1) || '?', 
+                rotation: form.elements['rotation'].value,
+                // 確保人選池清單是唯一的
+                pool: [...new Set(form.elements['pool'].value.split(',').map(p => p.trim()).filter(p => p))]
+            };
+
+            if (!newJobData.name || newJobData.pool.length === 0) {
+                 console.error('請填寫完整的工作事項資訊：名稱和人選池名單。');
+                 return;
+            }
+            
+            if (jobId) {
+                // 更新現有工作事項
+                const index = jobs.findIndex(j => j.id === jobId);
+                if (index > -1) {
+                    // 保留 ID，更新其他屬性
+                    jobs[index] = { ...jobs[index], ...newJobData };
+                } else {
+                    console.error('嘗試更新一個不存在的工作事項。');
+                }
+            } else {
+                // 新增工作事項
+                const newJob = { 
+                    id: Date.now().toString(), // 確保 ID 唯一性
+                    ...newJobData
+                };
+                jobs.push(newJob);
+            }
+            
+            // 儲存並重新渲染所有相關視圖 (這會觸發 initStaffColors)
+            saveDataToLocalStorage();
+            updateAllViews();
+            closeJobConfigModal();
+            form.reset();
+        }
+
+        // 處理儲存按鈕點擊，決定是新增還是更新
+        function handleJobSave() {
+            const jobId = document.getElementById('job-config-modal').dataset.editingId;
+            saveOrUpdateJobConfig(jobId);
+        }
+        
+        // 刪除工作事項確認 (使用 console.log 模擬)
+        function deleteJobConfirmation() {
+            const jobId = document.getElementById('job-config-modal').dataset.editingId;
+            if (jobId) {
+                // 由於不能使用 confirm()，直接執行刪除並在 console 提示
+                console.log(`[操作提示] 正在刪除工作事項 ID: ${jobId}。相關排班記錄將被清除。`);
+                deleteJob(jobId);
+            }
+        }
+
+        // 實際刪除工作事項
+        function deleteJob(jobId) {
+            // 1. 從 jobs 列表中移除
+            jobs = jobs.filter(j => j.id !== jobId);
+
+            // 2. 清理 scheduleData 中所有相關的排班記錄
+            Object.keys(scheduleData).forEach(dateStr => {
+                scheduleData[dateStr] = scheduleData[dateStr].filter(assignment => assignment.jobId !== jobId);
+                // 如果該日沒有其他排班，則移除該日期條目
+                if (scheduleData[dateStr].length === 0) {
+                    delete scheduleData[dateStr];
+                }
+            });
+            // NEW: 清理 finalScheduleData 中所有相關的排班記錄
+            Object.keys(finalScheduleData).forEach(dateStr => {
+                finalScheduleData[dateStr] = finalScheduleData[dateStr].filter(assignment => assignment.jobId !== jobId);
+                if (finalScheduleData[dateStr].length === 0) {
+                    delete finalScheduleData[dateStr];
+                }
+            });
+            
+            // 3. 移除固定週期錨點
+            delete fixedCycleAnchors[jobId];
+
+            // 4. 儲存並重新渲染所有視圖
+            saveDataToLocalStorage();
+            updateAllViews();
+            closeJobConfigModal();
+            // 提示已刪除 (使用 console.log 替代 alert)
+            console.log(`[操作成功] 工作事項已刪除，相關排班記錄已清除。`);
+        }
+
+        // ----------------------------------------------------
+        // 統計總覽 (Overview) 邏輯
+        // ----------------------------------------------------
+
+        function renderStaffLoadList() {
+            const staffLoadContainer = document.getElementById('staff-load-list');
+            
+            if (!staffLoadContainer) {
+                 console.warn("renderStaffLoadList: DOM elements not ready, skipping render.");
+                 return;
+            }
+
+            staffLoadContainer.innerHTML = '';
+            
+            const staffLoad = {};
+
+            // NEW: 1. 篩選當前月份的排班數據 (使用 Final Schedule 數據作為最終總覽)
+            const dataStore = finalScheduleData;
+            const { year, month } = getMonthDetails(currentViewDate);
+            const currentMonthStr = `${year}-${String(month).padStart(2, '0')}`;
+            
+            const currentMonthSchedule = {};
+            Object.keys(dataStore).forEach(dateStr => {
+                if (dateStr.startsWith(currentMonthStr)) {
+                    currentMonthSchedule[dateStr] = dataStore[dateStr];
+                }
+            });
+
+            // 2. 遍歷當前月份的排班數據，計算每個人被排班的次數
+            Object.values(currentMonthSchedule).forEach(dailyAssignments => {
+                dailyAssignments
+                    .filter(a => a.jobId !== 'day-off') // 排除公休
+                    .forEach(assignment => {
+                    const { fullName: personFullName } = getPersonDetails(assignment.jobId, assignment.person); 
+                    
+                    if (staffLoad[personFullName]) {
+                        staffLoad[personFullName]++;
+                    } else {
+                        staffLoad[personFullName] = 1;
+                    }
+                });
+            });
+
+            const staffLoadArray = Object.entries(staffLoad).sort(([, a], [, b]) => b - a); // 依次數降冪排序
+            
+            staffLoadArray.forEach(([person, load]) => {
+                // 使用 staffColors 獲取顏色
+                const baseColor = staffColors[person] || 'gray-500';
+                // 使用更深的顏色 (例如: -500 變成 -600) 來顯示負荷
+                const color = baseColor.replace('-500', '-600'); 
+
+                staffLoadContainer.innerHTML += `
+                    <div class="p-4 bg-white rounded-xl shadow-md flex justify-between items-center">
+                        <span class="font-semibold text-lg text-gray-800">${person}</span>
+                        <span class="text-2xl font-bold text-${color}">${load} 次</span>
+                    </div>
+                `;
+            });
+            
+            if (staffLoadArray.length === 0) {
+                 staffLoadContainer.innerHTML = '<p class="text-center text-gray-500 p-4">本月尚未有排班記錄。</p>';
+            }
+        }
+
+
+        // ----------------------------------------------------
+        // 模態視窗 (Modal) 處理
+        // ----------------------------------------------------
+        
+        // 主排班模態視窗 (用於月曆的 "完整排班" 或矩陣的 "快速編輯")
+        function showScheduleModal(dateStr, viewMode = 'working', jobId = null, personCode = null) {
+            selectedDate = dateStr;
+            const dateParts = dateStr.split('-');
+            const displayDate = `${dateParts[0]}年 ${dateParts[1]}月 ${dateParts[2]}日`;
+            
+            document.getElementById('modal-date').textContent = `為 ${displayDate} 排班`;
+            
+            const jobSelect = document.getElementById('schedule-job-select');
+            const personSelect = document.getElementById('schedule-person-select');
+            const suggestionP = document.getElementById('schedule-suggestion');
+            const saveBtn = document.getElementById('save-schedule-btn');
+            const personLabel = document.getElementById('person-select-label');
+            
+            // NEW: 儲存當前操作的視圖模式
+            document.getElementById('schedule-modal').dataset.viewMode = viewMode; 
+            
+            // 決定使用哪個數據源來預設值
+            const dataStore = viewMode === 'final' ? finalScheduleData : scheduleData;
+
+            jobSelect.innerHTML = '';
+            personSelect.innerHTML = '<option value="">-- 取消排班 --</option>'; // 預設選項
+
+            // 1. 處理工作事項清單 (包含公休)
+            const dayOffJob = jobs.find(j => j.id === 'day-off');
+            if (dayOffJob) {
+                const option = document.createElement('option');
+                option.value = dayOffJob.id;
+                option.textContent = `⭐ ${dayOffJob.name}`;
+                jobSelect.appendChild(option);
+            }
+
+            jobs.filter(j => j.id !== 'day-off').forEach(job => {
+                const option = document.createElement('option');
+                option.value = job.id;
+                option.textContent = `${job.name} (${job.code})`;
+                jobSelect.appendChild(option);
+            });
+
+            // 2. 初始選中狀態
+            const dailySchedule = dataStore[dateStr] || []; // Use dataStore
+            const isDayOffStatus = dailySchedule.some(item => item.jobId === 'day-off');
+
+            if (isDayOffStatus) {
+                jobSelect.value = 'day-off';
+            } else if (jobId) { // 如果是矩陣模式帶入特定 job
+                jobSelect.value = jobId;
+            } else if (dailySchedule.length > 0) { // 月曆模式 (viewMode !== 'final') 預設選中第一個已排工作
+                 // 預設選中該日第一個已排的工作 (僅在月曆完整模式)
+                 jobSelect.value = dailySchedule[0].jobId;
+            }
+
+
+            // 3. 處理模式與事件
+            jobSelect.onchange = updatePersonSelect;
+            
+            // **修正 ReferenceError:** 在使用 job 之前定義它
+            const selectedJobId = jobSelect.value;
+            const job = jobs.find(j => j.id === selectedJobId);
+
+            updatePersonSelect(); // 初始載入
+
+            // 修正月曆 Full Mode 的禁用邏輯：只有在 Final 模式 或 Matrix 模式下才禁用 Job Select
+            const isMatrixMode = jobId && jobId.length > 0; // 如果傳入了 job ID，則視為 Matrix 模式
+
+            if (viewMode === 'final' || isMatrixMode) { 
+                jobSelect.disabled = true; 
+            } else {
+                jobSelect.disabled = false;
+            }
+            
+            // 儲存按鈕的點擊事件
+            saveBtn.onclick = () => {
+                const selectedJob = jobSelect.value;
+                const selectedPerson = personSelect.value;
+                const currentMode = document.getElementById('schedule-modal').dataset.viewMode; // Retrieve view mode
+                // NEW: 傳入 viewMode
+                saveScheduleAssignment(selectedDate, selectedJob, selectedPerson, currentMode); 
+            };
+            
+            // 調整提示訊息以反映模式
+            if (viewMode === 'final') {
+                suggestionP.textContent = '💡 最終調整模式：變動不會影響自動排班規則。';
+            } else {
+                // 這裡的 job 現在已經被正確定義
+                suggestionP.textContent = `💡 輪替模式: ${getRotationText(job ? job.rotation : 'none')}`;
+            }
+
+            document.getElementById('schedule-modal').classList.remove('hidden');
+        }
+        
+        // 根據選擇的工作事項更新人選清單
+        function updatePersonSelect() {
+            const jobSelect = document.getElementById('schedule-job-select');
+            const personSelect = document.getElementById('schedule-person-select');
+            const suggestionP = document.getElementById('schedule-suggestion');
+            const personLabel = document.getElementById('person-select-label');
+            const viewMode = document.getElementById('schedule-modal').dataset.viewMode; // Retrieve view mode
+            const dataStore = viewMode === 'final' ? finalScheduleData : scheduleData;
+
+            const selectedJobId = jobSelect.value;
+            const job = jobs.find(j => j.id === selectedJobId);
+            
+            personSelect.innerHTML = '<option value="">-- 取消排班 --</option>';
+
+            if (selectedJobId === 'day-off') {
+                personSelect.innerHTML = '<option value="休" selected>公休日無需人員</option>';
+                personSelect.disabled = true;
+                personLabel.classList.add('opacity-50');
+                suggestionP.textContent = '💡 該日將設為公休，所有排班會被清除。';
+                
+            } else if (job) {
+                personSelect.disabled = false;
+                personLabel.classList.remove('opacity-50');
+                if (viewMode === 'working') {
+                     suggestionP.textContent = `💡 輪替模式: ${getRotationText(job.rotation)}`;
+                } else {
+                     suggestionP.textContent = '💡 最終調整模式：變動不會影響自動排班規則。';
+                }
+
+                // 預選當前排班人
+                const currentAssignment = dataStore[selectedDate] ? dataStore[selectedDate].find(item => item.jobId === selectedJobId) : null;
+                const currentPersonCode = currentAssignment ? currentAssignment.person : null;
+
+                job.pool.forEach(p => {
+                    const option = document.createElement('option');
+                    option.value = p;
+                    option.textContent = p;
+                    
+                    if (getPersonAbbreviation(p) === currentPersonCode) {
+                        option.selected = true;
+                    }
+
+                    personSelect.appendChild(option);
+                });
+            } else {
+                 personSelect.disabled = false;
+                 personLabel.classList.remove('opacity-50');
+                 suggestionP.textContent = '💡 系統建議: 請先選擇工作事項';
+            }
+        }
+
+
+        function closeScheduleModal() {
+            document.getElementById('schedule-modal').classList.add('hidden');
+            document.getElementById('schedule-job-select').onchange = null; // 清除事件監聽
+        }
+
+        // 顯示工作設定/編輯模態視窗
+        function showJobConfigModal(jobId = null) {
+            const modal = document.getElementById('job-config-modal');
+            const form = document.getElementById('job-config-form');
+            const title = document.getElementById('job-config-title');
+            const saveBtn = document.getElementById('save-job-config-btn');
+            const deleteBtn = document.getElementById('delete-job-btn'); // 取得刪除按鈕
+
+            // 1. Reset Form / Set Mode
+            form.reset();
+            modal.dataset.editingId = ''; // Clear ID
+            deleteBtn.classList.add('hidden'); // 預設隱藏刪除按鈕
+
+            if (jobId) {
+                // 編輯模式
+                const job = jobs.find(j => j.id === jobId);
+                if (!job) {
+                    console.error('Job not found for ID:', jobId);
+                    return;
+                }
+                title.textContent = `編輯工作事項 (${job.code})`;
+                modal.dataset.editingId = jobId; // 儲存正在編輯的 ID
+
+                // 填入表單
+                form.elements['name'].value = job.name;
+                form.elements['pool'].value = job.pool.join(', ');
+                form.elements['rotation'].value = job.rotation;
+
+                // 更新儲存按鈕文字
+                saveBtn.textContent = '儲存修改';
+                
+                // 顯示刪除按鈕
+                deleteBtn.classList.remove('hidden');
+
+            } else {
+                // 新增模式
+                title.textContent = '新增工作事項';
+                saveBtn.textContent = '儲存事項';
+            }
+            
+            modal.classList.remove('hidden');
+        }
+
+        function closeJobConfigModal() {
+            document.getElementById('job-config-modal').classList.add('hidden');
+        }
+        
+        // ----------------------------------------------------
+        // 人員顏色設定邏輯 (Staff Color Config)
+        // ----------------------------------------------------
+        
+        function showStaffColorModal(personName, currentColor) {
+            const modal = document.getElementById('staff-color-modal');
+            document.getElementById('staff-color-title').textContent = `設定 ${personName} 的顏色`;
+            modal.dataset.personName = personName;
+
+            const colorInput = document.getElementById('staff-color-input');
+            const colorPalette = document.getElementById('color-palette');
+            
+            colorInput.value = currentColor;
+            colorPalette.innerHTML = '';
+            
+            // 由於 Tailwind 類名要完整出現才能被 JIT 偵測，這裡使用完整類名
+            const ringColors = AVAILABLE_COLORS.map(c => c.replace('-500', ''));
+
+            AVAILABLE_COLORS.forEach(color => {
+                const isSelected = color === currentColor;
+                const baseColor = color.replace('-500', '');
+
+                const colorDiv = document.createElement('div');
+                // 確保所有可能的 ring 類名都存在於 HTML/JS 中
+                const ringClass = `ring-4 ring-offset-2 ring-${baseColor}-500`;
+
+                colorDiv.className = `w-full h-10 rounded-xl bg-${color} cursor-pointer hover:ring-4 hover:ring-opacity-50 ring-offset-2 transition duration-150 color-option ${isSelected ? ringClass : ''}`;
+                colorDiv.dataset.color = color;
+                
+                colorDiv.onclick = (e) => {
+                    // 清除所有選項的 ring
+                    document.querySelectorAll('#color-palette .color-option').forEach(d => {
+                        ringColors.forEach(rc => d.classList.remove('ring-4', `ring-${rc}-500`));
+                    });
+                    
+                    const newColor = e.target.dataset.color;
+                    const newBaseColor = newColor.replace('-500', '');
+                    e.target.classList.add('ring-4', `ring-${newBaseColor}-500`);
+                    colorInput.value = newColor;
+                };
+                colorPalette.appendChild(colorDiv);
+            });
+
+            modal.classList.remove('hidden');
+        }
+        
+        function closeStaffColorModal() {
+            document.getElementById('staff-color-modal').classList.add('hidden');
+        }
+        
+        function saveStaffColor() {
+            const personName = document.getElementById('staff-color-modal').dataset.personName;
+            const newColor = document.getElementById('staff-color-input').value;
+
+            if (personName && newColor) {
+                staffColors[personName] = newColor;
+                // 儲存顏色並更新視圖
+                saveDataToLocalStorage();
+                updateAllViews();
+                closeStaffColorModal();
+                console.log(`[設定] ${personName} 的顏色已更新為 ${newColor}`);
+            } else {
+                console.error("無法儲存人員顏色，缺少名稱或顏色資訊。");
+            }
+        }
+
+
+        // ----------------------------------------------------
+        // 一鍵排班 (Auto-Schedule) 邏輯
+        // ----------------------------------------------------
+
+        // 輔助函數：取得下一個負責人 (返回全名)
+        function getNextPerson(jobId, lastPersonFullName) {
+            const job = jobs.find(j => j.id === jobId);
+            if (!job || job.pool.length === 0) return null;
+
+            const pool = job.pool;
+            let index = pool.findIndex(p => p === lastPersonFullName);
+
+            // 如果找不到上次負責人，或已是最後一人，則從頭開始
+            if (index === -1 || index === pool.length - 1) {
+                return pool[0]; 
+            } else {
+                return pool[index + 1]; 
+            }
+        }
+
+        function autoScheduleMonth() {
+            if (jobs.length <= 1) { // 只有 day-off 算 1
+                console.warn('[排班警告] 請先在「設定」中新增工作事項。');
+                return;
+            }
+
+            const { year, month, numDays } = getMonthDetails(currentViewDate);
+            const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+            
+            // 由於是一鍵排班，清空所有固定週期的錨點
+            fixedCycleAnchors = {};
+            
+            let lastAssignments = {}; // { jobId: '負責人全名' }
+
+            // 遍歷所有工作事項 (不含 day-off)，設置初始輪替點
+            jobs.filter(j => j.id !== 'day-off').forEach(job => {
+                // 為了讓第一天輪替到 pool[0]，初始設定為 pool[last]
+                lastAssignments[job.id] = job.pool[job.pool.length - 1] || null; 
+            });
+
+
+            for (let day = 1; day <= numDays; day++) {
+                const dateStr = `${monthStr}-${String(day).padStart(2, '0')}`;
+                const currentDate = new Date(year, month - 1, day);
+                const currentWeekday = currentDate.getDay(); // 0=Sun, 1=Mon
+
+                
+                // 1. 檢查是否已手動設為公休 (或跳過排班)
+                const isExistingDayOff = isDayOff(dateStr);
+                
+                // 2. 清除所有非公休排班記錄，準備自動填入
+                const existingSchedule = scheduleData[dateStr] || [];
+                scheduleData[dateStr] = existingSchedule.filter(a => a.jobId === 'day-off');
+
+                if (isExistingDayOff) {
+                    continue; // 公休跳過排班
+                }
+
+                jobs.filter(j => j.id !== 'day-off').forEach(job => {
+                    let assignPersonFullName = lastAssignments[job.id];
+                    let shouldRotate = false;
+                    let isOffWeek = false; // 新增 OFF 週標記
+                    
+                    if (job.pool.length === 0) return; 
+
+                    // 處理輪替邏輯
+                    if (job.rotation === 'daily') {
+                        // 每日輪替：在每個工作日切換 
+                        shouldRotate = true; 
+                        
+                    } else if (job.rotation === 'weekly') {
+                        // 每週輪替：星期一 (1) 切換
+                        if (currentWeekday === 1) { 
+                            shouldRotate = true;
+                        }
+                    } else if (job.rotation === 'biweekly') { 
+                        // 隔週輪替：檢查是否為 ON 週 (使用全域錨定)
+                        const isCurrentWeekOn = isBiweeklyAssignmentWeek(currentDate);
+
+                        if (!isCurrentWeekOn) {
+                            // 如果是 OFF 週，則跳過排班
+                            isOffWeek = true;
+                        }
+
+                        // 判斷是否應該輪替人員 (只在 ON 週的第一天, 也就是星期一)
+                        if (currentWeekday === 1 && isCurrentWeekOn) { 
+                            shouldRotate = true;
+                        }
+
+                    } else if (job.rotation === 'monthly') {
+                        // 整個月負責：只有月第一天切換
+                        if (day === 1) {
+                            shouldRotate = true;
+                        }
+                    }
+
+                    if (shouldRotate) {
+                        assignPersonFullName = getNextPerson(job.id, lastAssignments[job.id]);
+                    } else {
+                        // 沿用前一個工作日的負責人
+                        assignPersonFullName = lastAssignments[job.id]; 
+                    }
+
+                    // 如果是 OFF 週，強制不排人員
+                    if (isOffWeek) {
+                        assignPersonFullName = null;
+                    }
+                    
+                    if (assignPersonFullName) {
+                        scheduleData[dateStr].push({ 
+                            jobId: job.id, 
+                            person: getPersonAbbreviation(assignPersonFullName) // 儲存縮寫
+                        });
+                        // 更新狀態以供下一個工作日使用
+                        lastAssignments[job.id] = assignPersonFullName;
+                    }
+                });
+            }
+
+            // 儲存數據並重新渲染視圖 (會觸發 Final Schedule 的同步，如果 Final Schedule 是空的)
+            saveDataToLocalStorage();
+            updateAllViews();
+            console.log(`[一鍵排班完成] ${monthStr} 的排班已根據輪替規則自動填滿。`);
+        }
+        
+        // ----------------------------------------------------
+        // PDF 匯出模擬
+        // ----------------------------------------------------
+
+        function exportMatrixToPDF(viewMode = 'working') {
+            // 模擬 PDF 匯出，實際執行瀏覽器列印功能
+            console.log('[匯出操作] 正在準備矩陣排班表進行匯出。請在彈出的對話框中選擇「另存為 PDF」。');
+            
+            const containerId = viewMode === 'final' ? 'matrix-table-container-final' : 'matrix-table-container-working';
+            const scrollContainerId = viewMode === 'final' ? 'matrix-scroll-container-final' : 'matrix-scroll-container-working';
+            
+            // 獲取需要暫存樣式的元素
+            const header = document.querySelector('header');
+            const nav = document.querySelector('nav');
+            const appFrame = document.getElementById('app-frame');
+            const body = document.body;
+            const mainContent = document.getElementById('main-content');
+            const matrixScrollContainer = document.getElementById(scrollContainerId);
+
+            // 儲存原始樣式
+            const originalStyles = {
+                headerDisplay: header ? header.style.display : '',
+                navDisplay: nav ? nav.style.display : '',
+                appFrameCssText: appFrame ? appFrame.style.cssText : '',
+                bodyBackground: body ? body.style.backgroundColor : '',
+                mainHeight: mainContent ? mainContent.style.height : '',
+                mainOverflow: mainContent ? mainContent.style.overflowY : '',
+                matrixScrollOverflow: matrixScrollContainer ? matrixScrollContainer.style.overflowX : '',
+            };
+            
+            // 隱藏不必要 UI 元素並解除大小限制
+            if (header) header.style.display = 'none';
+            if (nav) nav.style.display = 'none';
+            
+            // 解除 App 框架限制
+            if (appFrame) appFrame.style.cssText = 'width: 100%; max-width: none; height: auto; max-height: none; margin: 0; border-radius: 0; box-shadow: none; overflow: visible;';
+            if (body) body.style.backgroundColor = 'white';
+            
+            // 解除內容滾動限制 (確保整個矩陣表格能展開)
+            if (mainContent) {
+                mainContent.style.height = 'auto';
+                mainContent.style.overflowY = 'visible';
+            }
+            if (matrixScrollContainer) matrixScrollContainer.style.overflowX = 'visible';
+
+
+            // 強制切換到對應矩陣視圖並渲染
+            const tabId = viewMode === 'final' ? 'adjust' : 'matrix';
+            const matrixTabButton = document.querySelector(`.tab-btn[onclick="switchTab('${tabId}', this)"]`);
+            if (matrixTabButton) switchTab(tabId, matrixTabButton);
+
+            setTimeout(() => {
+                window.print();
+
+                // 恢復應用程式狀態
+                if (header) header.style.display = originalStyles.headerDisplay;
+                if (nav) nav.style.display = originalStyles.navDisplay;
+                if (appFrame) appFrame.style.cssText = originalStyles.appFrameCssText;
+                if (body) body.style.backgroundColor = originalStyles.bodyBackground;
+                if (mainContent) {
+                    mainContent.style.height = originalStyles.mainHeight;
+                    mainContent.style.overflowY = originalStyles.mainOverflow;
+                }
+                if (matrixScrollContainer) matrixScrollContainer.style.overflowX = originalStyles.matrixScrollOverflow;
+
+
+                // 重新渲染當前 Tab
+                if (matrixTabButton) switchTab(tabId, matrixTabButton);
+                console.log('[匯出完成] 您可以透過瀏覽器的列印對話框將其存為 PDF。');
+            }, 100); 
+        }
+
+        // ----------------------------------------------------
+        // PNG 匯出邏輯 (使用 html2canvas)
+        // ----------------------------------------------------
+        
+        /**
+         * @description 核心捕捉函數，用於 PNG 匯出
+         * @param {string} format - 圖片格式，例如 'image/png'
+         * @param {string} fileNameExt - 檔案副檔名，例如 '.png'
+         * @param {number} [quality=1.0] - 品質 0.0 到 1.0
+         */
+        async function captureMatrixAndRestore(format = 'image/png', fileNameExt = '.png', quality = 1.0, viewMode = 'working') {
+            if (typeof html2canvas === 'undefined') {
+                console.error('html2canvas 函式庫尚未載入，無法匯出圖片。');
+                const headerTitle = document.getElementById('header-title');
+                const originalTitle = headerTitle ? headerTitle.textContent : '';
+                if (headerTitle) {
+                    headerTitle.textContent = `❌ 錯誤: 無法匯出 ${fileNameExt} (請檢查 html2canvas 是否載入)`;
+                    setTimeout(() => { headerTitle.textContent = originalTitle; }, 3000);
+                }
+                return;
+            }
+
+            console.log(`[匯出操作] 正在準備矩陣排班表進行 ${fileNameExt} 匯出 (${viewMode} mode).`);
+            
+            const containerId = viewMode === 'final' ? 'matrix-table-container-final' : 'matrix-table-container-working';
+            const scrollContainerId = viewMode === 'final' ? 'matrix-scroll-container-final' : 'matrix-scroll-container-working';
+
+            // 獲取需要暫存樣式的元素
+            const header = document.querySelector('header');
+            const nav = document.querySelector('nav');
+            const appFrame = document.getElementById('app-frame');
+            const body = document.body;
+            const mainContent = document.getElementById('main-content');
+            const matrixScrollContainer = document.getElementById(scrollContainerId);
+            const matrixTableContainer = document.getElementById(containerId);
+            const matrixTable = matrixTableContainer ? matrixTableContainer.querySelector('table') : null; 
+
+            if (!matrixTableContainer) return; // 安全檢查
+
+            // 儲存原始樣式
+            const originalStyles = {
+                headerDisplay: header ? header.style.display : '',
+                navDisplay: nav ? nav.style.display : '',
+                appFrameCssText: appFrame ? appFrame.style.cssText : '',
+                bodyBackground: body ? body.style.backgroundColor : '',
+                mainHeight: mainContent ? mainContent.style.height : '',
+                mainOverflow: mainContent ? mainContent.style.overflowY : '',
+                matrixScrollOverflow: matrixScrollContainer ? matrixScrollContainer.style.overflowX : '',
+                matrixTableWidth: matrixTableContainer ? matrixTableContainer.style.minWidth : '',
+            };
+            
+            // 儲存並修改 sticky column styles
+            const stickyCols = document.querySelectorAll('.sticky-col');
+            const originalStickyStyles = [];
+            stickyCols.forEach(el => {
+                originalStickyStyles.push({ el: el, position: el.style.position });
+                el.style.position = 'static'; // 移除 sticky 效果
+            });
+
+            // 1. 隱藏不必要 UI 元素並解除大小限制
+            if (header) header.style.display = 'none';
+            if (nav) nav.style.display = 'none';
+            
+            // 解除 App 框架限制
+            if (appFrame) appFrame.style.cssText = 'width: 100%; max-width: none; height: auto; max-height: none; margin: 0; border-radius: 0; box-shadow: none; overflow: visible;';
+            if (body) body.style.backgroundColor = 'white';
+            
+            // 解除內容滾動限制 (確保整個矩陣表格能展開)
+            if (mainContent) {
+                mainContent.style.height = 'auto';
+                mainContent.style.overflowY = 'visible';
+            }
+            if (matrixScrollContainer) matrixScrollContainer.style.overflowX = 'visible';
+            if (matrixTableContainer) matrixTableContainer.style.minWidth = '100%'; 
+            
+            // 應用 PNG 捕捉模式樣式 (修正文字跑位)
+            if (matrixTable) matrixTable.classList.add('png-capture-mode');
+
+
+            // 強制切換到對應矩陣視圖並渲染 (確保最新的矩陣 HTML 存在於 DOM 中)
+            const tabId = viewMode === 'final' ? 'adjust' : 'matrix';
+            const matrixTabButton = document.querySelector(`.tab-btn[onclick="switchTab('${tabId}', this)"]`);
+            if (matrixTabButton) switchTab(tabId, matrixTabButton);
+            
+            // 2. 捕捉元素
+            setTimeout(async () => {
+                try {
+                    // 為了處理表格邊界和滾動，將寬度和高度設定為實際內容的滾動尺寸
+                    const captureWidth = matrixTableContainer.scrollWidth;
+                    const captureHeight = matrixTableContainer.scrollHeight;
+
+                    const canvas = await html2canvas(matrixTableContainer, {
+                        scale: 2, 
+                        backgroundColor: '#ffffff',
+                        width: captureWidth, 
+                        height: captureHeight,
+                    });
+                    
+                    // 3. 觸發下載
+                    const { year, month } = getMonthDetails(currentViewDate);
+                    const monthStr = `${year}${String(month).padStart(2, '0')}`;
+                    
+                    const imgUrl = canvas.toDataURL(format, quality);
+
+                    // 創建一個虛擬連結來觸發下載
+                    const link = document.createElement('a');
+                    link.href = imgUrl;
+                    link.download = `排班矩陣表_${monthStr}_${viewMode}${fileNameExt}`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    console.log(`[${fileNameExt.toUpperCase()} 匯出完成] 檔案已下載。`);
+
+                } catch (error) {
+                    console.error(`${fileNameExt.toUpperCase()} 匯出失敗:`, error);
+                } finally {
+                    // 4. 恢復應用程式狀態
+                    if (header) header.style.display = originalStyles.headerDisplay;
+                    if (nav) nav.style.display = originalStyles.navDisplay;
+                    if (appFrame) appFrame.style.cssText = originalStyles.appFrameCssText;
+                    if (body) body.style.backgroundColor = originalStyles.bodyBackground;
+                    if (mainContent) {
+                        mainContent.style.height = originalStyles.mainHeight;
+                        mainContent.style.overflowY = originalStyles.mainOverflow;
+                    }
+                    if (matrixScrollContainer) matrixScrollContainer.style.overflowX = originalStyles.matrixScrollOverflow;
+                    if (matrixTableContainer) matrixTableContainer.style.minWidth = originalStyles.matrixTableWidth;
+
+                    // 恢復 sticky column styles
+                    originalStickyStyles.forEach(item => {
+                        item.el.style.position = item.position;
+                    });
+                    
+                    // 移除 PNG 捕捉模式樣式
+                    if (matrixTable) matrixTable.classList.remove('png-capture-mode');
+
+                    // 重新渲染當前 Tab
+                    if (matrixTabButton) switchTab(tabId, matrixTabButton);
+                }
+            }, 100); 
+        }
+
+        function exportMatrixToPNG(viewMode = 'working') {
+            captureMatrixAndRestore('image/png', '.png', 1.0, viewMode);
+        }
+
+        /**
+         * @description 將當前月份的 Working Schedule 複製到 Final Schedule 中
+         */
+        function copyWorkingScheduleToFinal() {
+             const { year, month, numDays } = getMonthDetails(currentViewDate);
+             const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+             
+             let copyCount = 0;
+
+             for (let day = 1; day <= numDays; day++) {
+                 const dateStr = `${monthStr}-${String(day).padStart(2, '0')}`;
+
+                 if (scheduleData[dateStr]) {
+                     // 深度複製排班陣列
+                     finalScheduleData[dateStr] = JSON.parse(JSON.stringify(scheduleData[dateStr]));
+                     copyCount++;
+                 } else {
+                     // 清除 finalScheduleData 中該日的舊記錄
+                     if (finalScheduleData[dateStr]) delete finalScheduleData[dateStr];
+                 }
+             }
+
+             saveDataToLocalStorage();
+             renderAdjustView(); // 重新渲染調整矩陣頁面
+
+             console.log(`[複製完成] ${monthStr} 的工作排班 (${copyCount} 天) 已複製到調整頁面。`);
+        }
+
+
+        // 應用程式啟動
+        window.onload = function() {
+            // NEW: 應用程式啟動時，先從本地儲存載入資料
+            loadDataFromLocalStorage();
+            
+            // 確保第一個 Tab 是選中的
+            const initialTabButton = document.querySelector('.tab-btn');
+            if (initialTabButton) {
+                switchTab('schedule', initialTabButton);
+            }
+        };
+
+    </script>
+</body>
+</html>
